@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>DNSHunter</title>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  :root { --bg:#0a0e13; --panel:#111823; --border:#1e2836; --text:#e6edf3; --muted:#8b98a5;
+          --c2:#f85149; --suspicious:#d29922; --normal:#3fb950; --accent:#58a6ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,Segoe UI,Roboto,sans-serif; }
+  header { padding:18px 26px; border-bottom:1px solid var(--border); }
+  header h1 { margin:0; font-size:19px; }
+  .sub { color:var(--muted); font-size:12px; }
+  .container { padding:22px 26px; max-width:800px; margin:0 auto; }
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:18px; margin-bottom:16px; }
+  textarea { width:100%; background:#0a0e13; color:var(--text); border:1px solid var(--border); border-radius:6px; padding:8px; font-family:monospace; font-size:11px; min-height:160px; }
+  button { background:var(--accent); color:#0a0e13; border:none; padding:9px 16px; border-radius:6px; font-weight:600; cursor:pointer; margin-top:10px; }
+  .card { border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:10px; }
+  .badge { padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; text-transform:uppercase; }
+  .badge.possible_c2 { background:var(--c2); color:white; }
+  .badge.suspicious { background:var(--suspicious); color:#1c1300; }
+  .badge.normal { background:var(--normal); color:#04170a; }
+  .reason { font-size:12px; color:var(--muted); margin:4px 0 4px 8px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+const API_BASE = "http://localhost:8000";
+
+const DEFAULT_QUERIES = JSON.stringify([
+  {"timestamp": "2026-09-01T10:00:00", "src_ip": "10.0.0.9", "query": "www.google.com"},
+  {"timestamp": "2026-09-01T10:00:30", "src_ip": "10.0.0.9", "query": "mail.google.com"},
+  {"timestamp": "2026-09-01T10:01:00", "src_ip": "10.0.0.77", "query": "kx7qz2p9mw0lts6vbn8j1r5hy0adfe4c.badcdn.net"},
+  {"timestamp": "2026-09-01T10:01:05", "src_ip": "10.0.0.77", "query": "kx7qz2p9mw1lts6vbn8j1r5hy0adfe4c.badcdn.net"},
+  {"timestamp": "2026-09-01T10:01:10", "src_ip": "10.0.0.77", "query": "kx7qz2p9mw2lts6vbn8j1r5hy0adfe4c.badcdn.net"},
+  {"timestamp": "2026-09-01T10:01:15", "src_ip": "10.0.0.77", "query": "kx7qz2p9mw3lts6vbn8j1r5hy0adfe4c.badcdn.net"}
+], null, 2);
+
+function App() {
+  const [text, setText] = useState(DEFAULT_QUERIES);
+  const [results, setResults] = useState([]);
+  const [status, setStatus] = useState("");
+
+  async function classify() {
+    setStatus("Classifying...");
+    try {
+      const queries = JSON.parse(text);
+      const resp = await fetch(API_BASE + "/classify", {
+        method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(queries),
+      });
+      setResults(await resp.json());
+      setStatus("");
+    } catch (e) { setStatus("Error: " + e.message); }
+  }
+
+  return (
+    <div>
+      <header>
+        <h1>🧬 DNSHunter</h1>
+        <div className="sub">DNS-based C2 detection — DGA scoring, tunneling entropy, beaconing intervals</div>
+      </header>
+      <div className="container">
+        <div className="panel">
+          <textarea value={text} onChange={e => setText(e.target.value)} />
+          <button onClick={classify}>Classify</button>
+          <div className="sub">{status}</div>
+        </div>
+
+        {results.map((r, i) => (
+          <div className="card" key={i}>
+            <span className={"badge " + r.verdict}>{r.verdict.replace("_", " ")}</span>
+            <strong style={{marginLeft: 8}}>{r.src_ip}</strong>
+            <span className="sub" style={{marginLeft: 8}}>score {r.score}/100</span>
+            {r.reasons.map((reason, j) => <div className="reason" key={j}>• {reason}</div>)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
